@@ -17,7 +17,11 @@ func main() {
 		fmt.Println(err)
 	}
 	// tx := db.Exec("drop database shemail")
-	tx := db.Exec("create schema if not exists auth")
+	tx := db.Exec("drop schema if exists  auth cascade")
+	if tx.Error != nil {
+		fmt.Println(tx.Error.Error())
+	}
+	tx = db.Exec("create schema if not exists auth")
 
 	if tx.Error != nil {
 		fmt.Println(tx.Error.Error())

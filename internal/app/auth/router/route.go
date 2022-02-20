@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"shortenEmail/internal/app/auth"
 	"shortenEmail/internal/util/context"
+
+	"github.com/gorilla/mux"
 )
 
 type Http struct {
@@ -17,9 +19,11 @@ func Route(serv auth.Service) {
 	h := &Http{
 		serv: serv,
 	}
-	http.HandleFunc("/auth", h.ok)
-	http.HandleFunc("/", h.handleCode)
-	http.HandleFunc("/auth/getCode", h.handleGetCode)
+	router := mux.NewRouter()
+	router.HandleFunc("/auth", h.ok).Methods("POST")
+	router.HandleFunc("/", h.handleCode)
+	router.HandleFunc("/auth/getCode", h.handleGetCode)
+	http.Handle("/", router)
 }
 
 func (h *Http) handleCode(w http.ResponseWriter, r *http.Request) {

@@ -1,30 +1,38 @@
-// package response
+package response
 
-// import (
-// 	utilError "shortenEmail/internal/util/error"
+import (
+	"encoding/json"
+	"net/http"
+	utilError "shortenEmail/internal/util/error"
+)
 
-// 	"github.com/labstack/echo/v4"
-// )
+type Response struct {
+	Status  int         `json:"status"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data"`
+}
 
-// type Response struct {
-// 	Status  int         `json:"status"`
-// 	Message string      `json:"message"`
-// 	Data    interface{} `json:"data"`
-// }
+func Respond(w http.ResponseWriter, res *Response) (err error) {
 
-// func Respond(c echo.Context, res *Response) (err error) {
-// 	// contentType := c.Request().Header.Get("Content-Type")
+	w.WriteHeader(res.Status)
+	w.Header().Set("Content-Type", "application/json")
+	jsonRes, err := json.Marshal(res)
+	if err != nil {
+		return err
+	}
+	w.Write(jsonRes)
 
-// 	// switch contentType {
-// 	// case "application/json":
-// 	err = c.JSON(res.Status, res)
-// 	// case "application/xml":
-// 	// 	err = c.XML(res.Status, res)
-// 	// }
-// 	return
-// }
-// func RespondError(c echo.Context, res utilError.ApiErrorInterface) (err error) {
-// 	cres := res.(utilError.ApiError)
-// 	err = c.JSON(cres.Status, cres)
-// 	return
-// }
+	return nil
+}
+func RespondError(w http.ResponseWriter, res utilError.ApiErrorInterface) (err error) {
+	cres := res.(utilError.ApiError)
+	w.WriteHeader(cres.Status)
+	w.Header().Set("Content-Type", "application/json")
+	jsoncres, err := json.Marshal(cres)
+	if err != nil {
+		return err
+	}
+	w.Write(jsoncres)
+
+	return nil
+}

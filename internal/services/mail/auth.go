@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"shortenEmail/internal/services"
 	"shortenEmail/internal/util/client"
 
@@ -14,37 +13,6 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
 )
-
-type gmailClient struct {
-	clientID     string
-	clientSecret string
-	Url          string
-}
-
-func NewgmailClient(url string) (*gmailClient, error) {
-
-	if url == "" {
-		return nil, errors.New("NewgmailClient: empty url provided")
-	}
-
-	clientID := os.Getenv("CLIENT_ID")
-
-	if clientID == "" {
-		return nil, errors.New("NewgmailClient: no client id found")
-	}
-
-	clientSecret := os.Getenv("CLIENT_SECRET")
-
-	if clientSecret == "" {
-		return nil, errors.New("NewgmailClient: no client secret found")
-	}
-
-	return &gmailClient{
-		clientID:     clientID,
-		clientSecret: clientSecret,
-		Url:          url,
-	}, nil
-}
 
 func (gc *gmailClient) GetRedirectUrl() (string, error) {
 	// ctx := context.Background()
@@ -84,11 +52,11 @@ func (gc *gmailClient) GetToken(code,
 
 	hc := client.NewHttpClient(gc.Url, nil)
 	getTokenRequest := &services.GetTokenRequest{
-		Code:          code,
-		RedirectUri:   redirectUrl,
-		ClientID:      gc.clientID,
-		CliientSecret: gc.clientSecret,
-		GrantType:     grant_code,
+		Code:         code,
+		RedirectUri:  redirectUrl,
+		ClientID:     gc.clientID,
+		ClientSecret: gc.clientSecret,
+		GrantType:    grant_code,
 	}
 
 	marshledData, err := json.Marshal(getTokenRequest)
@@ -109,6 +77,50 @@ func (gc *gmailClient) GetToken(code,
 	}
 
 	tokenResponse := &services.GetTokenResponse{}
+
+	err = json.Unmarshal(returnResponse, tokenResponse)
+
+	if err != nil {
+		fmt.Println(errors.New("GetToken: " + err.Error()))
+	}
+
+	response <- tokenResponse
+
+	// return nil
+}
+
+func (gc *gmailClient) GetTokenFromRefreshToken(
+	refreshToken string,
+	response chan *services.RefreshTokenResponse) {
+
+	response <- nil
+
+	hc := client.NewHttpClient(gc.Url, nil)
+	getTokenRequest := &services.RefreshTokenRequest{
+		ClientID:     gc.clientID,
+		RefreshToken: refreshToken,
+		ClientSecret: gc.clientSecret,
+		GrantType:    refreshGrantCode,
+	}
+
+	marshaledData, err := json.Marshal(getTokenRequest)
+
+	if err != nil {
+		fmt.Println(errors.New("GetToken: " + err.Error()))
+	}
+
+	res, err := hc.Post(bytes.NewBuffer(marshaledData))
+
+	if err != nil {
+		fmt.Println(errors.New("GetToken: " + err.Error()))
+	}
+
+	returnResponse, err := ioutil.ReadAll(res)
+	if err != nil {
+		fmt.Println(errors.New("GetToken: " + err.Error()))
+	}
+
+	tokenResponse := &services.RefreshTokenResponse{}
 
 	err = json.Unmarshal(returnResponse, tokenResponse)
 

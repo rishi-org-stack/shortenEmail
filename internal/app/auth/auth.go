@@ -6,43 +6,32 @@ import (
 	"net/http"
 	"shortenEmail/internal/services"
 	"shortenEmail/internal/util"
-	"shortenEmail/internal/util/cache"
+	"strconv"
 	"time"
 
 	"gorm.io/gorm"
-)
-
-//error handle properly
-const (
-	source                  = "AUTH"
-	AUTH_INSERT_ERROR       = source + "_INSERT_ERROR"
-	AUTH_SERVER_ERROR       = source + "_SERVER_ERROR"
-	AUTH_BAD_REQUEST        = source + "_BAD_REQUEST"
-	AUTH_OTP_INSERT_ERROR   = source + "_OTP_INSERT_ERROR"
-	AUTH_UNAUTHORIZED_ERROR = source + "_INSERT_ERROR"
 )
 
 type authService struct {
 	gdb         *gorm.DB
 	authData    DB
 	mailService MailService
-	// jwtSer      TokenGenratorInterface
+	rdb         redisCache
+	jwtSer      tokenGenrator
 	// config      *config.Env
 }
 
-var OTP string
-
-func Init(db DB, gdb *gorm.DB, mailservice MailService) Service {
+func Init(db DB, gdb *gorm.DB, tg tokenGenrator, rdb redisCache, mailservice MailService) Service {
 	return &authService{
-		gdb:      gdb,
-		authData: db,
-		// jwtSer:      js,
-		// config:      config,
+		gdb:         gdb,
+		authData:    db,
+		jwtSer:      tg,
+		rdb:         rdb,
 		mailService: mailservice,
 	}
 }
 
-func (authServ authService) HandleAuth(ctx context.Context, ar *AuthRequest) { // (*apiRes.Response, apiError.ApiErrorInterface) {
+func (authServ authService) HandleAuth(ctx context.Context, ar *AuthRequest) { //(*apiRes.Response, apiError.ApiErrorInterface) {
 
 	res, err := authServ.authData.Find(authServ.gdb, ar)
 	if err != nil {
@@ -56,22 +45,21 @@ func (authServ authService) HandleAuth(ctx context.Context, ar *AuthRequest) { /
 		w := (ctx.Value("env")).(map[interface{}]interface{})["w"].(http.ResponseWriter)
 
 		http.Redirect(w, req, "http://localhost:8080/auth/getCode?email="+ar.Email, http.StatusTemporaryRedirect)
-		// 	return
 	}
 
-	rdb, err := cache.Connect()
-
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	accessToken, err := rdb.Get("USER_" + res.Email)
+	accessToken, err := authServ.rdb.Get("USER_" + res.Email)
 
 	if err != nil {
 		fmt.Println(err)
 	}
 	fmt.Println("ttoken", accessToken)
+	token, err := authServ.jwtSer.GenrateToken(int(res.ID), accessToken)
 
+	if err != nil {
+		fmt.Println("err->oken")
+	}
+	fmt.Println("token----XXXX-----")
+	fmt.Println(token)
 }
 
 func (authServ authService) HandleGetCode(ctx context.Context, email string) {
@@ -121,7 +109,7 @@ func (authServ authService) HandleCode(code, email string) {
 				Email:        email,
 				Expired:      false,
 				RefreshToken: getTokenRes.RefreshToken,
-				ExpiresOn:    util.TimeToEpoch(int64(getTokenRes.ExpiresIn)),
+				ExpiresOn:    strconv.Itoa(int(util.TimeToEpoch(int64(getTokenRes.ExpiresIn)))),
 				Status:       confirmed,
 			}
 
@@ -129,11 +117,8 @@ func (authServ authService) HandleCode(code, email string) {
 			if err != nil {
 				fmt.Println(err)
 			}
-			rdb, err := cache.Connect()
-			if err != nil {
-				fmt.Println(err)
-			}
-			err = rdb.Set(
+
+			err = authServ.rdb.Set(
 				"USER_"+email, getTokenRes.AccessToken,
 				time.Duration(time.Second*time.Duration(getTokenRes.ExpiresIn)))
 			if err != nil {

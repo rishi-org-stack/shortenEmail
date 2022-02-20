@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"shortenEmail/internal/services"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -24,7 +25,14 @@ type (
 		GetRedirectUrl() (string, error)
 		GetToken(code, grant_code string, response chan *services.GetTokenResponse)
 	}
+	redisCache interface {
+		Get(string) (string, error)
+		Set(string, string, time.Duration) error
+	}
 
+	tokenGenrator interface {
+		GenrateToken(id int, accessToken string) (string, error)
+	}
 	AuthRequest struct {
 		Email string `json:"email" gorm:"not null"`
 	}
@@ -33,7 +41,7 @@ type (
 		ID           int64 `json:"id" gorm:"primaryKey"`
 		Email        string
 		Expired      bool
-		ExpiresOn    int64
+		ExpiresOn    string
 		RefreshToken string
 		Status       int
 	}
